@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Custom Flappy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Bungee:wght@400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="runtimeError" style="display:none;position:fixed;left:12px;right:12px;top:12px;z-index:9999;background:#7f1d1d;color:#fff;padding:12px 14px;border-radius:10px;font-family:system-ui,sans-serif;font-size:14px;line-height:1.35"></div>
+  <div class="page-glow"></div>
+  <main class="app">
+    <section class="control-panel" aria-label="Game customization controls">
+      <h1>Custom Flappy</h1>
+      <p class="subtitle">Build your own vibe, then flap to survive.</p>
+
+      <div class="control-group">
+        <label for="bgColor">Background Color</label>
+        <div class="color-row">
+          <input id="bgColor" type="color" value="#8fd3ff" />
+          <span id="bgColorValue">#8fd3ff</span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label for="themeSelect">Theme</label>
+        <select id="themeSelect">
+          <option value="sunset">Sunset Arcade</option>
+          <option value="forest">Pixel Forest</option>
+          <option value="noir">Noir Mint</option>
+          <option value="candy">Candy Rush</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>Bird Image</label>
+        <div id="birdGallery" class="bird-gallery" role="radiogroup" aria-label="Choose a bird image"></div>
+
+        <label for="birdUpload" class="upload-label">Or upload your own</label>
+        <input id="birdUpload" type="file" accept="image/*" />
+      </div>
+
+      <div class="control-group controls-inline">
+        <button id="startBtn" class="btn-primary">Start Game</button>
+        <button id="resetBtn" class="btn-secondary">Reset</button>
+      </div>
+
+      <p class="tips">Controls: press <strong>Space</strong> or click/tap the game to flap.</p>
+    </section>
+
+    <section class="game-panel" aria-label="Flappy game area">
+      <div class="hud">
+        <div class="score-box">
+          <span class="label">Score</span>
+          <span id="scoreValue">0</span>
+        </div>
+        <div class="score-box">
+          <span class="label">Best</span>
+          <span id="bestValue">0</span>
+        </div>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="gameCanvas" width="520" height="640" aria-label="Flappy bird game canvas"></canvas>
+        <div id="overlay" class="overlay">
+          <h2 id="overlayTitle">Ready?</h2>
+          <p id="overlayText">Pick a theme and tap Start Game.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var box = document.getElementById("runtimeError");
+      function show(msg) {
+        if (!box) return;
+        box.style.display = "block";
+        box.textContent = "Runtime error: " + msg;
+      }
+
+      window.addEventListener("error", function (e) {
+        show(e && e.message ? e.message : "Unknown error");
+      });
+
+      window.addEventListener("unhandledrejection", function (e) {
+        var reason = e && e.reason ? String(e.reason) : "Unhandled promise rejection";
+        show(reason);
+      });
+    })();
+  </script>
+  <script src="script.js"></script>
+</body>
+</html>
