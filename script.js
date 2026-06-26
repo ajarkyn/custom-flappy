@@ -293,8 +293,8 @@ function setTheme(themeKey) {
   }
 
   const isOceanTheme = themeKey === "ocean";
-  gameState.bird.width = isOceanTheme ? Math.round(gameState.bird.baseWidth * 1.22) : gameState.bird.baseWidth;
-  gameState.bird.height = isOceanTheme ? Math.round(gameState.bird.baseHeight * 1.22) : gameState.bird.baseHeight;
+  gameState.bird.width = isOceanTheme ? Math.round(gameState.bird.baseWidth * 1.5) : gameState.bird.baseWidth;
+  gameState.bird.height = isOceanTheme ? Math.round(gameState.bird.baseHeight * 1.5) : gameState.bird.baseHeight;
 
   if (themeKey === "ocean") {
     applyOceanThemeBird();
@@ -898,20 +898,107 @@ function drawThemeDetails(themeKey) {
 }
 
 function drawPipes() {
-  const theme = themes[gameState.theme];
   const snap = (value) => Math.round(value / PIPE_PIXEL_SIZE) * PIPE_PIXEL_SIZE;
-  const pipeTexture = theme && theme.pipeImage ? getThemeBackgroundImage(theme.pipeImage) : null;
-  const textureReady = Boolean(pipeTexture && pipeTexture.complete && pipeTexture.naturalWidth > 0);
-  const isOceanMode = gameState.theme === "ocean";
+  const pixel = PIPE_PIXEL_SIZE;
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-  const fillPipeSegment = (x, y, width, height, fallbackColor) => {
-    if (textureReady) {
-      ctx.drawImage(pipeTexture, x, y, width, height);
+  const hash01 = (seed, a, b) => {
+    const mixed = ((seed * 374761393) ^ (a * 668265263) ^ (b * 2147483647)) >>> 0;
+    const scrambled = (mixed ^ (mixed >> 13) ^ (mixed >> 17)) >>> 0;
+    return scrambled / 4294967295;
+  };
+
+  const drawCoralSegment = (x, y, width, height, seed, openingAtTop) => {
+    if (width <= 0 || height <= 0) {
       return;
     }
 
-    ctx.fillStyle = fallbackColor;
-    ctx.fillRect(x, y, width, height);
+    const left = Math.floor(x / pixel) * pixel;
+    const top = Math.floor(y / pixel) * pixel;
+    const right = Math.ceil((x + width) / pixel) * pixel;
+    const bottom = Math.ceil((y + height) / pixel) * pixel;
+    const rowCount = Math.max(1, Math.floor((bottom - top) / pixel));
+    const centerBase = (left + right) / 2;
+    const halfBase = (right - left) / 2;
+
+    for (let py = top; py < bottom; py += pixel) {
+      const row = Math.floor((py - top) / pixel);
+      const cellsFromOpening = openingAtTop ? row : rowCount - 1 - row;
+      const growth = clamp(cellsFromOpening / Math.max(5, rowCount * 0.45), 0, 1);
+
+      const centerDrift = (Math.sin((row + seed * 0.013) * 0.6) + (hash01(seed + 7, row, 13) - 0.5)) * pixel * 2;
+      const edgeWave = Math.sin((row + seed * 0.019) * 0.45) * pixel * 1.5;
+      const narrowing = (1 - growth) * (pixel * 2 + Math.floor(hash01(seed + 29, row, 23) * pixel * 3));
+
+      const rowHalf = clamp(halfBase - narrowing + edgeWave, pixel * 2, halfBase + pixel);
+      const centerX = centerBase + centerDrift;
+      const rowLeft = Math.floor((centerX - rowHalf) / pixel) * pixel;
+      const rowRight = Math.ceil((centerX + rowHalf) / pixel) * pixel;
+
+      for (let px = left; px < right; px += pixel) {
+        if (px < rowLeft || px >= rowRight) {
+          continue;
+        }
+
+        const col = Math.floor((px - left) / pixel);
+        const edgeDepth = Math.min((px - rowLeft) / pixel, (rowRight - pixel - px) / pixel);
+        const cavityChance = edgeDepth < 1.5 ? 0.18 : edgeDepth < 3 ? 0.1 : 0.04;
+        const keepChance = clamp(0.72 + growth * 0.22 - cavityChance, 0.4, 0.96);
+        if (hash01(seed, row, col) > keepChance) {
+          continue;
+        }
+
+        let tone = "#ff7f73";
+        const toneSeed = hash01(seed + 11, row, col) + growth * 0.12;
+        if (toneSeed > 0.9) {
+          tone = "#ffd1c8";
+        } else if (toneSeed > 0.64) {
+          tone = "#ff9d8f";
+        } else if (toneSeed < 0.2) {
+          tone = "#e5636c";
+        }
+
+        ctx.fillStyle = tone;
+        ctx.fillRect(px, py, pixel, pixel);
+      }
+    }
+
+    // Cluster small polyps near the opening to create organic coral growth.
+    const openingY = openingAtTop ? top : bottom - pixel;
+    const polypRows = 4;
+    for (let i = 0; i < polypRows; i += 1) {
+      const row = openingAtTop ? i : rowCount - 1 - i;
+      const py = openingAtTop ? top + i * pixel : bottom - (i + 1) * pixel;
+      const centerDrift = (Math.sin((row + seed * 0.013) * 0.6) + (hash01(seed + 7, row, 13) - 0.5)) * pixel * 2;
+      const edgeWave = Math.sin((row + seed * 0.019) * 0.45) * pixel * 1.5;
+      const growth = clamp((openingAtTop ? row : rowCount - 1 - row) / Math.max(5, rowCount * 0.45), 0, 1);
+      const narrowing = (1 - growth) * (pixel * 2 + Math.floor(hash01(seed + 29, row, 23) * pixel * 3));
+      const rowHalf = clamp(halfBase - narrowing + edgeWave, pixel * 2, halfBase + pixel);
+      const centerX = centerBase + centerDrift;
+      const rowLeft = Math.floor((centerX - rowHalf) / pixel) * pixel;
+      const rowRight = Math.ceil((centerX + rowHalf) / pixel) * pixel;
+
+      const clusterCount = 2 + Math.floor(hash01(seed + 91, i, row) * 3);
+      for (let c = 0; c < clusterCount; c += 1) {
+        const t = hash01(seed + 123, i, c);
+        const baseX = Math.floor((rowLeft + t * Math.max(pixel, rowRight - rowLeft - pixel)) / pixel) * pixel;
+        const dy = openingAtTop ? -pixel * (1 + (c % 2)) : pixel * (1 + (c % 2));
+
+        ctx.fillStyle = "#ffd1c8";
+        ctx.fillRect(baseX, openingY + dy, pixel, pixel);
+        ctx.fillStyle = "#ff9d8f";
+        ctx.fillRect(baseX, py, pixel, pixel);
+      }
+    }
+
+    // Add a subtle shadow band on the rooted side to keep depth without pipe-like outlines.
+    const shadowY = openingAtTop ? bottom - pixel : top;
+    for (let px = left; px < right; px += pixel) {
+      if (hash01(seed + 211, Math.floor(px / pixel), rowCount) > 0.35) {
+        ctx.fillStyle = "#bf4b58";
+        ctx.fillRect(px, shadowY, pixel, pixel);
+      }
+    }
   };
 
   gameState.pipes.forEach((pipe) => {
@@ -920,30 +1007,10 @@ function drawPipes() {
     const topHeight = Math.max(0, snap(pipe.topHeight));
     const bottomY = snap(pipe.topHeight + gameState.pipeGap);
     const bottomHeight = Math.max(0, canvas.height - bottomY);
+    const coralSeed = Math.floor(pipe.topHeight * 10) + Math.floor(pipe.width * 13);
 
-    if (isOceanMode) {
-      // In ocean mode, replace pipe visuals with coral-image obstacles only.
-      fillPipeSegment(pipeX, 0, pipeWidth, topHeight, "#2a6f97");
-      fillPipeSegment(pipeX, bottomY, pipeWidth, bottomHeight, "#2a6f97");
-      return;
-    }
-
-    const capHeight = PIPE_PIXEL_SIZE * 3;
-    const topCapY = topHeight - capHeight;
-    const capX = pipeX - PIPE_PIXEL_SIZE;
-    const capWidth = pipeWidth + PIPE_PIXEL_SIZE * 2;
-
-    fillPipeSegment(pipeX, 0, pipeWidth, topHeight, theme.pipe);
-    fillPipeSegment(pipeX, bottomY, pipeWidth, bottomHeight, theme.pipe);
-    fillPipeSegment(capX, topCapY, capWidth, capHeight, theme.pipeCap);
-    fillPipeSegment(capX, bottomY, capWidth, capHeight, theme.pipeCap);
-
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(pipeX + 1, 1, Math.max(0, pipeWidth - 2), Math.max(0, topHeight - 2));
-    ctx.strokeRect(pipeX + 1, bottomY + 1, Math.max(0, pipeWidth - 2), Math.max(0, bottomHeight - 2));
-    ctx.strokeRect(capX + 1, topCapY + 1, Math.max(0, capWidth - 2), Math.max(0, capHeight - 2));
-    ctx.strokeRect(capX + 1, bottomY + 1, Math.max(0, capWidth - 2), Math.max(0, capHeight - 2));
+    drawCoralSegment(pipeX, 0, pipeWidth, topHeight, coralSeed, false);
+    drawCoralSegment(pipeX, bottomY, pipeWidth, bottomHeight, coralSeed + 101, true);
   });
 }
 
@@ -1094,6 +1161,9 @@ async function initGame() {
   setTheme(gameState.theme);
   const gallerySources = await getBirdGallerySources();
   buildBirdGallery(gallerySources);
+  if (gameState.theme === "ocean") {
+    applyOceanThemeBird();
+  }
   resetGame();
   requestAnimationFrame(gameLoop);
 }
